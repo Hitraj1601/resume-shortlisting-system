@@ -1,0 +1,18 @@
+John Doe
+Software Engineer
+Email: john@email.com
+Phone: (555) 123-4567
+
+EXPERIENCE:
+3 years of experience in web development
+Senior Developer at Tech Corp (2021-2024)
+- Developed React applications
+- Used JavaScript, Node.js, MongoDB
+- Led team of 5 developers
+
+SKILLS:
+JavaScript, React, Node.js, MongoDB, Git, AWS
+
+EDUCATION:
+Bachelor's degree in Computer Science
+University of Technology (2017-2021)
