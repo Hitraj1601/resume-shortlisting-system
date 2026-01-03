@@ -232,6 +232,93 @@ const emailTemplates = {
       </html>
     `,
   }),
+
+  vacancyDeadlineReminder: (data) => ({
+    subject: `Reminder: Vacancy "${data.jobTitle}" deadline approaching`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Deadline Reminder</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #ffc107; color: #333; padding: 20px; text-align: center; }
+          .content { padding: 20px; background: #f9f9f9; }
+          .deadline-box { background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 5px; margin: 15px 0; }
+          .button { display: inline-block; padding: 12px 24px; background: #007bff; color: white; text-decoration: none; border-radius: 5px; margin: 20px 0; }
+          .footer { text-align: center; padding: 20px; color: #666; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1> Deadline Reminder</h1>
+          </div>
+          <div class="content">
+            <h2>Hello ${data.name},</h2>
+            <p>This is a reminder that the deadline for the vacancy <strong>"${data.jobTitle}"</strong> at <strong>${data.company}</strong> is approaching.</p>
+            <div class="deadline-box">
+              <p><strong>Deadline:</strong> ${data.deadline}</p>
+              <p><strong>Time remaining:</strong> ${data.daysRemaining} day(s)</p>
+              <p><strong>Current applications:</strong> ${data.applicationsCount}</p>
+            </div>
+            <p>${data.isHR ? 'Please review the applications and take necessary actions before the deadline.' : 'If you haven\'t applied yet, don\'t miss this opportunity!'}</p>
+            ${data.isHR ? '' : '<a href="' + data.applyUrl + '" class="button">Apply Now</a>'}
+          </div>
+          <div class="footer">
+            <p>&copy; 2024 Resume Shortlisting System. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
+  }),
+
+  applicationStatusUpdate: (data) => ({
+    subject: `Application Status Update: ${data.jobTitle}`,
+    html: `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Application Status Update</title>
+        <style>
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
+          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+          .header { background: #28a745; color: white; padding: 20px; text-align: center; }
+          .content { padding: 20px; background: #f9f9f9; }
+          .status-box { background: #d4edda; border: 1px solid #28a745; padding: 15px; border-radius: 5px; margin: 15px 0; text-align: center; }
+          .status-box.rejected { background: #f8d7da; border-color: #dc3545; }
+          .status-box.pending { background: #fff3cd; border-color: #ffc107; }
+          .footer { text-align: center; padding: 20px; color: #666; font-size: 14px; }
+        </style>
+      </head>
+      <body>
+        <div class="container">
+          <div class="header">
+            <h1>Application Update</h1>
+          </div>
+          <div class="content">
+            <h2>Hello ${data.candidateName},</h2>
+            <p>There's an update on your application for <strong>${data.jobTitle}</strong> at <strong>${data.company}</strong>.</p>
+            <div class="status-box ${data.status === 'rejected' ? 'rejected' : data.status === 'pending' ? 'pending' : ''}">
+              <h3>Status: ${data.status.toUpperCase()}</h3>
+            </div>
+            ${data.message ? '<p>' + data.message + '</p>' : ''}
+            <p>Thank you for your interest in this position.</p>
+          </div>
+          <div class="footer">
+            <p>&copy; 2024 Resume Shortlisting System. All rights reserved.</p>
+          </div>
+        </div>
+      </body>
+      </html>
+    `,
+  }),
 };
 
 // Send email function

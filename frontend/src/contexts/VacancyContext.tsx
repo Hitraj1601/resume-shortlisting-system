@@ -1,21 +1,24 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react'
+import { vacanciesAPI } from '@/lib/api'
 
 export interface Vacancy {
   id: string
+  _id?: string
   title: string
   company: string
   location: string
   type: string
-  experience: string
-  salary: string
+  experience: string | { min?: number; max?: number }
+  salary: string | { min?: number; max?: number; currency?: string }
   openings: number
   deadline: string
   description: string
-  requirements: string
+  requirements: string | string[]
   skills: string[]
   status: 'open' | 'closed' | 'draft'
   createdAt: string
-  applicants: number
+  applicants: number | any[]
+  postedBy?: string | { name?: string; email?: string; company?: string }
 }
 
 interface VacancyContextType {
@@ -23,13 +26,15 @@ interface VacancyContextType {
   openVacancies: Vacancy[]
   closedVacancies: Vacancy[]
   draftVacancies: Vacancy[]
-  addVacancy: (vacancy: Omit<Vacancy, 'id' | 'createdAt' | 'status' | 'applicants'>) => void
-  updateVacancy: (id: string, updates: Partial<Vacancy>) => void
-  deleteVacancy: (id: string) => void
-  closeVacancy: (id: string) => void
-  reopenVacancy: (id: string) => void
+  isLoading: boolean
+  error: string | null
+  addVacancy: (vacancy: Omit<Vacancy, 'id' | 'createdAt' | 'status' | 'applicants'>) => Promise<boolean>
+  updateVacancy: (id: string, updates: Partial<Vacancy>) => Promise<boolean>
+  deleteVacancy: (id: string) => Promise<boolean>
+  closeVacancy: (id: string) => Promise<boolean>
+  reopenVacancy: (id: string) => Promise<boolean>
   getVacancyById: (id: string) => Vacancy | undefined
-  updateVacancyStatuses: () => void
+  refreshVacancies: () => Promise<void>
 }
 
 const VacancyContext = createContext<VacancyContextType | undefined>(undefined)
@@ -46,87 +51,129 @@ interface VacancyProviderProps {
   children: ReactNode
 }
 
+// Helper to normalize vacancy data from API
+const normalizeVacancy = (vacancy: any): Vacancy => {
+  return {
+    ...vacancy,
+    id: vacancy._id || vacancy.id,
+    applicants: Array.isArray(vacancy.applicants) ? vacancy.applicants.length : (vacancy.applicants || 0),
+  }
+}
+
 export const VacancyProvider: React.FC<VacancyProviderProps> = ({ children }) => {
   const [vacancies, setVacancies] = useState<Vacancy[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  // Load vacancies from localStorage on mount
-  useEffect(() => {
-    const savedVacancies = localStorage.getItem('vacancies')
-    if (savedVacancies) {
-      try {
-        const parsed = JSON.parse(savedVacancies)
-        setVacancies(parsed)
-      } catch (error) {
-        console.error('Error loading vacancies from localStorage:', error)
+  // Fetch vacancies from API on mount
+  const refreshVacancies = async () => {
+    setIsLoading(true)
+    setError(null)
+    try {
+      const response = await vacanciesAPI.getAll({ limit: 100 })
+      if (response.success && response.data) {
+        const normalizedVacancies = response.data.map(normalizeVacancy)
+        setVacancies(normalizedVacancies)
+      } else {
+        setError(response.message || 'Failed to fetch vacancies')
       }
-    } else {
-      // Start with empty vacancies - let HR create real ones
-      setVacancies([])
+    } catch (err) {
+      console.error('Error fetching vacancies:', err)
+      setError('Failed to connect to server')
+    } finally {
+      setIsLoading(false)
     }
-    
-    // Clear any existing sample data to start fresh
-    localStorage.removeItem('vacancies')
+  }
+
+  useEffect(() => {
+    refreshVacancies()
   }, [])
 
-  // Save vacancies to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('vacancies', JSON.stringify(vacancies))
-  }, [vacancies])
-
-  // Update vacancy statuses based on deadlines
-  const updateVacancyStatuses = () => {
-    const now = new Date()
-    setVacancies(prev => 
-      prev.map(vacancy => {
-        const deadline = new Date(vacancy.deadline)
-        if (deadline < now && vacancy.status === 'open') {
-          return { ...vacancy, status: 'closed' as const }
-        }
-        return vacancy
-      })
-    )
-  }
-
-  // Check statuses every hour
-  useEffect(() => {
-    updateVacancyStatuses()
-    const interval = setInterval(updateVacancyStatuses, 60 * 60 * 1000) // 1 hour
-    return () => clearInterval(interval)
-  }, [])
-
-  const addVacancy = (vacancyData: Omit<Vacancy, 'id' | 'createdAt' | 'status' | 'applicants'>) => {
-    const newVacancy: Vacancy = {
-      ...vacancyData,
-      id: `vacancy_${Date.now()}`,
-      createdAt: new Date().toISOString(),
-      status: 'open',
-      applicants: 0
+  const addVacancy = async (vacancyData: Omit<Vacancy, 'id' | 'createdAt' | 'status' | 'applicants'>): Promise<boolean> => {
+    try {
+      const response = await vacanciesAPI.create(vacancyData)
+      if (response.success && response.data) {
+        const newVacancy = normalizeVacancy(response.data)
+        setVacancies(prev => [newVacancy, ...prev])
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Error creating vacancy:', error)
+      return false
     }
-    setVacancies(prev => [newVacancy, ...prev])
   }
 
-  const updateVacancy = (id: string, updates: Partial<Vacancy>) => {
-    setVacancies(prev => 
-      prev.map(vacancy => 
-        vacancy.id === id ? { ...vacancy, ...updates } : vacancy
-      )
-    )
+  const updateVacancy = async (id: string, updates: Partial<Vacancy>): Promise<boolean> => {
+    try {
+      const response = await vacanciesAPI.update(id, updates)
+      if (response.success) {
+        setVacancies(prev =>
+          prev.map(vacancy =>
+            (vacancy.id === id || vacancy._id === id) ? { ...vacancy, ...updates } : vacancy
+          )
+        )
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Error updating vacancy:', error)
+      return false
+    }
   }
 
-  const deleteVacancy = (id: string) => {
-    setVacancies(prev => prev.filter(vacancy => vacancy.id !== id))
+  const deleteVacancy = async (id: string): Promise<boolean> => {
+    try {
+      const response = await vacanciesAPI.delete(id)
+      if (response.success) {
+        setVacancies(prev => prev.filter(vacancy => vacancy.id !== id && vacancy._id !== id))
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Error deleting vacancy:', error)
+      return false
+    }
   }
 
-  const closeVacancy = (id: string) => {
-    updateVacancy(id, { status: 'closed' })
+  const closeVacancy = async (id: string): Promise<boolean> => {
+    try {
+      const response = await vacanciesAPI.close(id)
+      if (response.success) {
+        setVacancies(prev =>
+          prev.map(vacancy =>
+            (vacancy.id === id || vacancy._id === id) ? { ...vacancy, status: 'closed' } : vacancy
+          )
+        )
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Error closing vacancy:', error)
+      return false
+    }
   }
 
-  const reopenVacancy = (id: string) => {
-    updateVacancy(id, { status: 'open' })
+  const reopenVacancy = async (id: string): Promise<boolean> => {
+    try {
+      const response = await vacanciesAPI.reopen(id)
+      if (response.success) {
+        setVacancies(prev =>
+          prev.map(vacancy =>
+            (vacancy.id === id || vacancy._id === id) ? { ...vacancy, status: 'open' } : vacancy
+          )
+        )
+        return true
+      }
+      return false
+    } catch (error) {
+      console.error('Error reopening vacancy:', error)
+      return false
+    }
   }
 
   const getVacancyById = (id: string) => {
-    return vacancies.find(vacancy => vacancy.id === id)
+    return vacancies.find(vacancy => vacancy.id === id || vacancy._id === id)
   }
 
   // Computed values
@@ -139,13 +186,15 @@ export const VacancyProvider: React.FC<VacancyProviderProps> = ({ children }) =>
     openVacancies,
     closedVacancies,
     draftVacancies,
+    isLoading,
+    error,
     addVacancy,
     updateVacancy,
     deleteVacancy,
     closeVacancy,
     reopenVacancy,
     getVacancyById,
-    updateVacancyStatuses
+    refreshVacancies
   }
 
   return (

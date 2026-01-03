@@ -162,55 +162,6 @@ const LandingPage = () => {
         </div>
       </section>
 
-      {/* Demo Credentials Section */}
-      <section className="py-16 bg-gradient-card">
-        <div className="container mx-auto px-4">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            whileInView={{ opacity: 1, y: 0 }}
-            viewport={{ once: true }}
-            className="text-center max-w-2xl mx-auto"
-          >
-            <h2 className="text-3xl font-bold mb-6">Try the Demo</h2>
-            <p className="text-muted-foreground mb-8">
-              Experience ResumeAI with our demo accounts. No registration required!
-            </p>
-            
-            <div className="grid md:grid-cols-2 gap-6">
-              <div className="bg-card p-6 rounded-xl border">
-                <h3 className="text-lg font-semibold mb-4 text-primary">HR Demo</h3>
-                <div className="space-y-2 text-sm">
-                  <p><strong>Email:</strong> hr@demo.com</p>
-                  <p><strong>Password:</strong> hr123</p>
-                </div>
-                <Button 
-                  variant="default" 
-                  className="w-full mt-4"
-                  onClick={() => navigate('/login?role=hr')}
-                >
-                  Login as HR
-                </Button>
-              </div>
-              
-              <div className="bg-card p-6 rounded-xl border">
-                <h3 className="text-lg font-semibold mb-4 text-secondary">Candidate Demo</h3>
-                <div className="space-y-2 text-sm">
-                  <p><strong>Email:</strong> candidate@demo.com</p>
-                  <p><strong>Password:</strong> candidate123</p>
-                </div>
-                <Button 
-                  variant="secondary" 
-                  className="w-full mt-4"
-                  onClick={() => navigate('/login?role=candidate')}
-                >
-                  Login as Candidate
-                </Button>
-              </div>
-            </div>
-          </motion.div>
-        </div>
-      </section>
-
       {/* Footer */}
       <footer className="bg-foreground text-background py-12">
         <div className="container mx-auto px-4 text-center">

@@ -1,22 +1,30 @@
 import React, { createContext, useContext, useState, useEffect } from 'react'
-import { demoCredentials, mockUser } from '@/lib/mockData'
+import { authAPI } from '@/lib/api'
 
-interface User {
+export interface User {
   id: string
+  _id?: string
   name: string
   email: string
   role: 'hr' | 'candidate'
   company?: string
-  experience?: string
+  experience?: string | number
   skills?: string[]
   avatar?: string
+  phone?: string
+  location?: string
+  bio?: string
+  isActive?: boolean
+  isVerified?: boolean
+  createdAt?: string
+  lastLogin?: string
 }
 
 interface AuthContextType {
   user: User | null
-  login: (email: string, password: string, role: 'hr' | 'candidate') => Promise<boolean>
+  login: (email: string, password: string, role: 'hr' | 'candidate') => Promise<{ success: boolean; message?: string }>
   logout: () => void
-  register: (userData: RegisterData) => Promise<boolean>
+  register: (userData: RegisterData) => Promise<{ success: boolean; message?: string }>
   isAuthenticated: boolean
   isLoading: boolean
 }
@@ -44,46 +52,74 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    // Check if user is logged in from localStorage
-    const savedUser = localStorage.getItem('user')
-    if (savedUser) {
-      setUser(JSON.parse(savedUser))
+    // Check if user is logged in from token
+    const checkAuth = async () => {
+      const token = localStorage.getItem('auth_token')
+      if (token) {
+        try {
+          const response = await authAPI.getMe()
+          if (response.success && response.user) {
+            setUser(response.user)
+          } else {
+            // Token invalid, clear it
+            localStorage.removeItem('auth_token')
+          }
+        } catch (error) {
+          console.error('Auth check failed:', error)
+          localStorage.removeItem('auth_token')
+        }
+      }
+      setIsLoading(false)
     }
-    setIsLoading(false)
+    
+    checkAuth()
   }, [])
 
-  const login = async (email: string, password: string, role: 'hr' | 'candidate'): Promise<boolean> => {
-    // Check against demo credentials
-    const demoUser = demoCredentials[role]
-    
-    if (email === demoUser.email && password === demoUser.password) {
-      const userData = mockUser[role]
-      setUser(userData)
-      localStorage.setItem('user', JSON.stringify(userData))
-      return true
+  const login = async (email: string, password: string, role: 'hr' | 'candidate'): Promise<{ success: boolean; message?: string }> => {
+    try {
+      const response = await authAPI.login(email, password)
+      
+      if (response.success && response.user && response.token) {
+        // Store token
+        localStorage.setItem('auth_token', response.token)
+        setUser(response.user)
+        return { success: true }
+      }
+      
+      return { success: false, message: response.message || 'Login failed' }
+    } catch (error) {
+      console.error('Login failed:', error)
+      return { success: false, message: 'Login failed. Please try again.' }
     }
-    
-    return false
   }
 
-  const register = async (userData: RegisterData): Promise<boolean> => {
-    // Mock registration - just log the user in
-    const mockUserData: User = {
-      id: Date.now().toString(),
-      name: userData.name,
-      email: userData.email,
-      role: userData.role,
-      company: userData.company
+  const register = async (userData: RegisterData): Promise<{ success: boolean; message?: string }> => {
+    try {
+      const response = await authAPI.register(userData)
+      
+      if (response.success && response.user && response.token) {
+        // Store token
+        localStorage.setItem('auth_token', response.token)
+        setUser(response.user)
+        return { success: true }
+      }
+      
+      return { success: false, message: response.message || 'Registration failed' }
+    } catch (error) {
+      console.error('Registration failed:', error)
+      return { success: false, message: 'Registration failed. Please try again.' }
     }
-    
-    setUser(mockUserData)
-    localStorage.setItem('user', JSON.stringify(mockUserData))
-    return true
   }
 
-  const logout = () => {
-    setUser(null)
-    localStorage.removeItem('user')
+  const logout = async () => {
+    try {
+      await authAPI.logout()
+    } catch (error) {
+      console.error('Logout error:', error)
+    } finally {
+      setUser(null)
+      localStorage.removeItem('auth_token')
+    }
   }
 
   const value: AuthContextType = {

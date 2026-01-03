@@ -2,34 +2,6 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import { setCache, getCache } from '../config/redis.js';
 
-// Hardcoded users for authentication
-const HARDCODED_USERS = {
-  'hr@company.com': {
-    id: 'hr001',
-    name: 'HR Manager',
-    email: 'hr@company.com',
-    password: 'hr123456',
-    role: 'hr',
-    company: 'Tech Corp'
-  },
-  'candidate@email.com': {
-    id: 'candidate001',
-    name: 'John Doe',
-    email: 'candidate@email.com',
-    password: 'candidate123',
-    role: 'candidate',
-    experience: 3,
-    skills: ['JavaScript', 'React', 'Node.js']
-  },
-  'admin@company.com': {
-    id: 'admin001',
-    name: 'Admin User',
-    email: 'admin@company.com',
-    password: 'admin123',
-    role: 'admin'
-  }
-};
-
 export const protect = async (req, res, next) => {
   try {
     let token;
@@ -47,12 +19,8 @@ export const protect = async (req, res, next) => {
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET || 'fallback-secret');
     
-    // Find user (check hardcoded first, then database)
-    let user = HARDCODED_USERS[decoded.email];
-    
-    if (!user) {
-      user = await User.findById(decoded.id).select('-password');
-    }
+    // Find user from database
+    const user = await User.findById(decoded.id).select('-password');
     
     if (!user) {
       return res.status(401).json({ error: 'User not found' });

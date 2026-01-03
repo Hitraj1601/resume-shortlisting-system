@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { useAuth } from '@/contexts/AuthContext'
-import { Brain, Mail, Lock, Users, FileText, AlertCircle } from 'lucide-react'
+import { Brain, Mail, Lock, Users, FileText } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 
 const LoginPage = () => {
@@ -37,8 +37,8 @@ const LoginPage = () => {
     setIsLoading(true)
 
     try {
-      const success = await login(email, password, role)
-      if (success) {
+      const result = await login(email, password, role)
+      if (result.success) {
         toast({
           title: "Login successful!",
           description: `Welcome back! Redirecting to your ${role} dashboard.`,
@@ -47,7 +47,7 @@ const LoginPage = () => {
       } else {
         toast({
           title: "Login failed",
-          description: "Invalid email or password. Please try again.",
+          description: result.message || "Invalid email or password. Please try again.",
           variant: "destructive",
         })
       }
@@ -59,17 +59,6 @@ const LoginPage = () => {
       })
     } finally {
       setIsLoading(false)
-    }
-  }
-
-  const fillDemoCredentials = (demoRole: 'hr' | 'candidate') => {
-    setRole(demoRole)
-    if (demoRole === 'hr') {
-      setEmail('hr@demo.com')
-      setPassword('hr123')
-    } else {
-      setEmail('candidate@demo.com')
-      setPassword('candidate123')
     }
   }
 
@@ -164,35 +153,6 @@ const LoginPage = () => {
                 {isLoading ? 'Signing In...' : 'Sign In'}
               </Button>
             </form>
-
-            {/* Demo Credentials */}
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <AlertCircle className="w-4 h-4" />
-                <span>Try our demo accounts:</span>
-              </div>
-              
-              <div className="grid grid-cols-2 gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fillDemoCredentials('hr')}
-                  className="text-xs"
-                >
-                  Fill HR Demo
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => fillDemoCredentials('candidate')}
-                  className="text-xs"
-                >
-                  Fill Candidate Demo
-                </Button>
-              </div>
-            </div>
 
             <div className="text-center text-sm">
               <span className="text-muted-foreground">Don't have an account? </span>
