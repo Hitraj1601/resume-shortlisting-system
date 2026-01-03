@@ -4,6 +4,7 @@ interface ResumeData {
   id: string
   fileName: string
   fileSize: string
+  fileUrl?: string
   uploadDate: string
   lastUpdated: string
   skills: string[]
@@ -185,18 +186,70 @@ export const ResumeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       
       console.log('Final extracted skills:', skills)
 
+      // Calculate Match Score based on multiple factors
+      const calculateMatchScore = () => {
+        const skillsAnalysis = analysis.skills_analysis || {}
+        const experienceAnalysis = analysis.experience_analysis || {}
+        const educationAnalysis = analysis.education_analysis || {}
+        
+        // 1. Skills Score (40%) - based on skill count and diversity
+        const totalSkills = skillsAnalysis.total_count || 0
+        const categories = Object.keys(skillsAnalysis.by_category || {}).length
+        const skillCountScore = Math.min(totalSkills * 5, 50) // Up to 50 points for skill count
+        const diversityScore = Math.min(categories * 10, 50) // Up to 50 points for category diversity
+        const skillsScore = (skillCountScore + diversityScore) / 100 * 100 // Normalize to 0-100
+        
+        // 2. Experience Score (30%) - based on years and level
+        const expYears = experienceAnalysis.years || 0
+        const expLevel = experienceAnalysis.level || ''
+        let experienceScore = 0
+        if (expYears >= 5 || expLevel.toLowerCase().includes('senior')) experienceScore = 100
+        else if (expYears >= 3 || expLevel.toLowerCase().includes('mid')) experienceScore = 75
+        else if (expYears >= 1 || expLevel.toLowerCase().includes('junior')) experienceScore = 50
+        else if (expYears > 0 || expLevel.toLowerCase().includes('entry')) experienceScore = 30
+        else experienceScore = 20 // Base score for having a resume
+        
+        // 3. Education Score (20%) - based on degree
+        let educationScore = 40 // Base score
+        if (educationAnalysis.has_degree) {
+          const highestDegree = (educationAnalysis.degrees?.[0] || '').toLowerCase()
+          if (highestDegree.includes('phd') || highestDegree.includes('doctorate')) educationScore = 100
+          else if (highestDegree.includes('master') || highestDegree.includes('mba')) educationScore = 90
+          else if (highestDegree.includes('bachelor') || highestDegree.includes('b.')) educationScore = 75
+          else educationScore = 60
+        }
+        
+        // 4. Profile Completeness Score (10%) - based on contact info and summary
+        const hasEmail = analysis.contact_info?.email ? 1 : 0
+        const hasPhone = analysis.contact_info?.phone ? 1 : 0
+        const hasLinkedIn = analysis.contact_info?.linkedin ? 1 : 0
+        const hasSummary = analysis.summary && analysis.summary.length > 50 ? 1 : 0
+        const completenessScore = ((hasEmail + hasPhone + hasLinkedIn + hasSummary) / 4) * 100
+        
+        // Weighted final score
+        const finalScore = Math.round(
+          (skillsScore * 0.40) +
+          (experienceScore * 0.30) +
+          (educationScore * 0.20) +
+          (completenessScore * 0.10)
+        )
+        
+        return Math.max(finalScore, 25) // Minimum 25% for having a resume
+      }
+
       // Create resume data from ML service analysis
       const resumeData: ResumeData = {
         id: 'resume1',
         fileName: file.name,
         fileSize: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+        fileUrl: URL.createObjectURL(file), // Create blob URL for preview
         uploadDate: new Date().toISOString().split('T')[0],
         lastUpdated: new Date().toISOString().split('T')[0],
         skills: skills.length > 0 ? skills : ['React', 'JavaScript', 'Python', 'Node.js', 'TypeScript', 'Git', 'AWS'],
         experience: analysis.experience_analysis?.level || '3 years',
         education: analysis.education_analysis?.has_degree ? 'Bachelor in Computer Science' : 'High School',
-        aiScore: analysis.overall_score || Math.floor(Math.random() * 20) + 80,
-        matchScore: analysis.skills_analysis?.total_count ? Math.min(analysis.skills_analysis.total_count * 10, 100) : Math.floor(Math.random() * 20) + 80,
+        aiScore: analysis.overall_score || 85, // Default fallback score
+        matchScore: calculateMatchScore(), // Comprehensive match score calculation
         // Store additional ML analysis data
         skillsAnalysis: analysis.skills_analysis,
         experienceAnalysis: analysis.experience_analysis,
@@ -277,6 +330,8 @@ export const ResumeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.error('Error applying to job:', error)
       
       // Fallback to basic application if analysis fails
+      // Generate deterministic scores based on jobId hash
+      const jobHash = jobId.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
       const fallbackApplication: Application = {
         id: `app_${Date.now()}`,
         jobId,
@@ -284,9 +339,9 @@ export const ResumeProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         company,
         appliedDate: new Date().toISOString().split('T')[0],
         status: 'Applied',
-        aiScore: Math.floor(Math.random() * 20) + 70,
-        skillsMatch: Math.floor(Math.random() * 20) + 70,
-        experienceScore: Math.floor(Math.random() * 20) + 70,
+        aiScore: 75 + (jobHash % 20), // Deterministic score 75-94
+        skillsMatch: 75 + ((jobHash * 3) % 20), // Deterministic score 75-94
+        experienceScore: 75 + ((jobHash * 7) % 20), // Deterministic score 75-94
         lastUpdated: new Date().toISOString().split('T')[0],
         notes: 'Application submitted successfully'
       }

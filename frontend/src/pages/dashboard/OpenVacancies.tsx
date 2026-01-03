@@ -7,7 +7,7 @@ import {
   Users, 
   Calendar,
   Eye,
-  Edit,
+  Trash2,
   X,
   PlusCircle
 } from 'lucide-react'
@@ -57,6 +57,34 @@ const OpenVacancies = () => {
       return { text: deadlineDate.toLocaleDateString(), variant: 'outline' as const }
     }
   }
+
+  // Helper to format salary for display
+  const formatSalary = (salary: any): string => {
+    if (!salary) return '';
+    if (typeof salary === 'string') return salary;
+    if (typeof salary === 'object') {
+      const { min, max, currency = 'USD' } = salary;
+      if (min && max) return `${currency} ${min.toLocaleString()} - ${max.toLocaleString()}`;
+      if (min) return `${currency} ${min.toLocaleString()}+`;
+      if (max) return `Up to ${currency} ${max.toLocaleString()}`;
+      return '';
+    }
+    return String(salary);
+  };
+
+  // Helper to format experience for display
+  const formatExperience = (experience: any): string => {
+    if (!experience) return 'Not specified';
+    if (typeof experience === 'string') return experience;
+    if (typeof experience === 'object') {
+      const { min, max } = experience;
+      if (min && max) return `${min} - ${max} years`;
+      if (min) return `${min}+ years`;
+      if (max) return `Up to ${max} years`;
+      return 'Not specified';
+    }
+    return String(experience);
+  };
 
   return (
     <DashboardLayout>
@@ -177,7 +205,7 @@ const OpenVacancies = () => {
                           </div>
                           <div className="flex items-center gap-2">
                             <Badge variant="outline">{vacancy.type}</Badge>
-                            <Badge variant="outline">{vacancy.experience}</Badge>
+                            <Badge variant="outline">{formatExperience(vacancy.experience)}</Badge>
                           </div>
                         </div>
                         
@@ -201,32 +229,50 @@ const OpenVacancies = () => {
                             {deadlineInfo.text}
                           </Badge>
                           {vacancy.salary && (
-                            <Badge variant="outline">{vacancy.salary}</Badge>
+                            <Badge variant="outline">{formatSalary(vacancy.salary)}</Badge>
                           )}
                         </div>
                       </div>
 
                       <div className="flex items-center gap-2 ml-4">
                         <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/dashboard/vacancy/${vacancy.id || vacancy._id}/applicants`)}
+                          title="View Applicants"
+                        >
+                          <Users className="w-4 h-4 mr-1" />
+                          {vacancy.applicants}
+                        </Button>
+                        <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => navigate(`/dashboard/vacancy/${vacancy.id}`)}
+                          onClick={() => {
+                            toast({
+                              title: "Vacancy Details",
+                              description: `${vacancy.title} at ${vacancy.company}\nLocation: ${vacancy.location}\nType: ${vacancy.type}\nOpenings: ${vacancy.openings}\nApplicants: ${vacancy.applicants}`,
+                            })
+                          }}
+                          title="View Details"
                         >
                           <Eye className="w-4 h-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => navigate(`/dashboard/edit-vacancy/${vacancy.id}`)}
+                          onClick={() => handleCloseVacancy(vacancy.id, vacancy.title)}
+                          title="Close Vacancy"
                         >
-                          <Edit className="w-4 h-4" />
+                          <X className="w-4 h-4" />
                         </Button>
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => handleCloseVacancy(vacancy.id, vacancy.title)}
+                          onClick={() => handleDeleteVacancy(vacancy.id, vacancy.title)}
+                          title="Delete Vacancy"
+                          className="text-red-600 hover:text-red-700"
                         >
-                          <X className="w-4 h-4" />
+                          <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
                     </motion.div>

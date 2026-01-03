@@ -20,6 +20,7 @@ import applicationRoutes from './routes/applications.js';
 import aiRoutes from './routes/ai.js';
 import uploadRoutes from './routes/upload.js';
 import analyticsRoutes from './routes/analytics.js';
+import chatRoutes from './routes/chat.js';
 
 // Import middleware
 import { errorHandler } from './middleware/errorHandler.js';
@@ -58,7 +59,7 @@ app.use(helmet({
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? ['https://yourdomain.com'] 
-    : ['http://localhost:3000', 'http://localhost:5173'],
+    : ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:8080'],
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
@@ -121,30 +122,31 @@ app.get('/health', (req, res) => {
 });
 
 // API Routes
-const API_VERSION = process.env.API_VERSION || 'v1';
-app.use(`/api/${API_VERSION}/auth`, authRoutes);
-app.use(`/api/${API_VERSION}/users`, userRoutes);
-app.use(`/api/${API_VERSION}/vacancies`, vacancyRoutes);
-app.use(`/api/${API_VERSION}/candidates`, candidateRoutes);
-app.use(`/api/${API_VERSION}/applications`, applicationRoutes);
-app.use(`/api/${API_VERSION}/ai`, aiRoutes);
-app.use(`/api/${API_VERSION}/upload`, uploadRoutes);
-app.use(`/api/${API_VERSION}/analytics`, analyticsRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/vacancies', vacancyRoutes);
+app.use('/api/candidates', candidateRoutes);
+app.use('/api/applications', applicationRoutes);
+app.use('/api/ai', aiRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/analytics', analyticsRoutes);
+app.use('/api/chat', chatRoutes);
 
 // API documentation
-app.get(`/api/${API_VERSION}`, (req, res) => {
+app.get('/api', (req, res) => {
   res.json({
     message: 'Resume Shortlisting API',
-    version: API_VERSION,
+    version: '1.0',
     endpoints: {
-      auth: `/api/${API_VERSION}/auth`,
-      users: `/api/${API_VERSION}/users`,
-      vacancies: `/api/${API_VERSION}/vacancies`,
-      candidates: `/api/${API_VERSION}/candidates`,
-      applications: `/api/${API_VERSION}/applications`,
-      ai: `/api/${API_VERSION}/ai`,
-      upload: `/api/${API_VERSION}/upload`,
-      analytics: `/api/${API_VERSION}/analytics`,
+      auth: '/api/auth',
+      users: '/api/users',
+      vacancies: '/api/vacancies',
+      candidates: '/api/candidates',
+      applications: '/api/applications',
+      ai: '/api/ai',
+      upload: '/api/upload',
+      analytics: '/api/analytics',
+      chat: '/api/chat',
     },
     documentation: '/api/docs',
   });
@@ -157,7 +159,7 @@ app.use(errorHandler);
 // Start server
 const server = app.listen(PORT, () => {
   console.log(`🚀 Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-  console.log(`📚 API Documentation: http://localhost:${PORT}/api/${API_VERSION}`);
+  console.log(`📚 API Documentation: http://localhost:${PORT}/api`);
   console.log(`🏥 Health Check: http://localhost:${PORT}/health`);
 });
 

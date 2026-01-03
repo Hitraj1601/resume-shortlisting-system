@@ -39,13 +39,16 @@ const ClosedVacancies = () => {
     }
   }
 
-  const formatClosedDate = (deadline: string) => {
+  const formatClosedDate = (deadline: string, createdAt?: string) => {
     const deadlineDate = new Date(deadline)
     const now = new Date()
     const diffTime = now.getTime() - deadlineDate.getTime()
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
     
-    if (diffDays === 0) {
+    // If deadline is in the future, vacancy was manually closed before deadline
+    if (diffDays < 0) {
+      return { text: 'Manually closed', variant: 'secondary' as const }
+    } else if (diffDays === 0) {
       return { text: 'Closed today', variant: 'secondary' as const }
     } else if (diffDays === 1) {
       return { text: 'Closed yesterday', variant: 'secondary' as const }
@@ -55,6 +58,34 @@ const ClosedVacancies = () => {
       return { text: `Closed on ${deadlineDate.toLocaleDateString()}`, variant: 'outline' as const }
     }
   }
+
+  // Helper to format salary for display
+  const formatSalary = (salary: any): string => {
+    if (!salary) return '';
+    if (typeof salary === 'string') return salary;
+    if (typeof salary === 'object') {
+      const { min, max, currency = 'USD' } = salary;
+      if (min && max) return `${currency} ${min.toLocaleString()} - ${max.toLocaleString()}`;
+      if (min) return `${currency} ${min.toLocaleString()}+`;
+      if (max) return `Up to ${currency} ${max.toLocaleString()}`;
+      return '';
+    }
+    return String(salary);
+  };
+
+  // Helper to format experience for display
+  const formatExperience = (experience: any): string => {
+    if (!experience) return 'Not specified';
+    if (typeof experience === 'string') return experience;
+    if (typeof experience === 'object') {
+      const { min, max } = experience;
+      if (min && max) return `${min} - ${max} years`;
+      if (min) return `${min}+ years`;
+      if (max) return `Up to ${max} years`;
+      return 'Not specified';
+    }
+    return String(experience);
+  };
 
   return (
     <DashboardLayout>
@@ -174,7 +205,7 @@ const ClosedVacancies = () => {
                           </div>
                           <div className="flex items-center gap-2">
                             <Badge variant="outline">{vacancy.type}</Badge>
-                            <Badge variant="outline">{vacancy.experience}</Badge>
+                            <Badge variant="outline">{formatExperience(vacancy.experience)}</Badge>
                           </div>
                         </div>
                         
@@ -198,7 +229,7 @@ const ClosedVacancies = () => {
                             {closedInfo.text}
                           </Badge>
                           {vacancy.salary && (
-                            <Badge variant="outline">{vacancy.salary}</Badge>
+                            <Badge variant="outline">{formatSalary(vacancy.salary)}</Badge>
                           )}
                         </div>
                       </div>

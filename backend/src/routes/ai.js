@@ -7,41 +7,63 @@ const router = express.Router();
 // AI service configuration
 const AI_SERVICE_URL = process.env.AI_SERVICE_URL || 'http://localhost:8000';
 
-// Analyze resume with AI
-router.post('/analyze-resume', protect, authorize('hr', 'admin'), async (req, res) => {
+// Health check for AI service
+router.get('/health', async (req, res) => {
   try {
-    // Mock AI analysis for now
-    const analysis = {
-      overall_score: 85,
-      skills_analysis: {
-        categories: {
-          programming: { skills: ['JavaScript', 'React'], count: 2, score: 80 },
-          web_tech: { skills: ['HTML', 'CSS'], count: 2, score: 100 }
-        },
-        total_skills: 4,
-        diversity_score: 75
-      },
-      experience_analysis: {
-        years: 3,
-        score: 30,
-        level: 'Mid-level'
-      },
-      education_analysis: {
-        score: 80,
-        has_degree: true
-      },
-      recommendations: [
-        'Consider adding more diverse technical skills',
-        'Highlight more work experience and achievements'
-      ]
-    };
-    
+    const response = await axios.get(`${AI_SERVICE_URL}/health`, { timeout: 5000 });
     res.json({
       success: true,
-      data: analysis
+      aiService: 'connected',
+      data: response.data
     });
   } catch (error) {
-    res.status(500).json({ error: 'AI analysis failed' });
+    res.status(503).json({
+      success: false,
+      aiService: 'disconnected',
+      message: 'AI/ML service is not available. Please ensure the ML service is running.'
+    });
+  }
+});
+
+// Analyze resume with AI
+router.post('/analyze-resume', protect, async (req, res) => {
+  try {
+    const { resumeText } = req.body;
+    
+    if (!resumeText || resumeText.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Resume text is required',
+        message: 'Please provide resume content to analyze.'
+      });
+    }
+
+    // Call ML service - no fallback
+    const response = await axios.post(`${AI_SERVICE_URL}/analyze-resume`, 
+      { text: resumeText },
+      { timeout: 30000 }
+    );
+    
+    return res.json({
+      success: true,
+      data: response.data
+    });
+  } catch (error) {
+    console.error('AI analysis error:', error.message);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'ML service unavailable',
+        message: 'The AI/ML service is not running. Please start the ML service and try again.'
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      error: 'AI analysis failed',
+      message: error.response?.data?.message || 'Failed to analyze resume. Please try again.'
+    });
   }
 });
 
@@ -50,26 +72,40 @@ router.post('/analyze-jd', protect, authorize('hr', 'admin'), async (req, res) =
   try {
     const { text } = req.body;
     
-    // Mock JD analysis
-    const analysis = {
-      required_skills: {
-        technical_skills: { skills: ['React', 'JavaScript'], count: 2, importance: 20 },
-        soft_skills: { skills: ['communication'], count: 1, importance: 10 }
-      },
-      experience_requirements: {
-        minimum_years: 3,
-        level: 'Mid-level'
-      },
-      seniority_level: 'mid',
-      difficulty_score: 70
-    };
+    if (!text || text.trim().length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Job description text is required',
+        message: 'Please provide job description content to analyze.'
+      });
+    }
+
+    // Call ML service - no fallback
+    const response = await axios.post(`${AI_SERVICE_URL}/analyze-jd`, 
+      { text },
+      { timeout: 30000 }
+    );
     
-    res.json({
+    return res.json({
       success: true,
-      data: analysis
+      data: response.data
     });
   } catch (error) {
-    res.status(500).json({ error: 'JD analysis failed' });
+    console.error('JD analysis error:', error.message);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'ML service unavailable',
+        message: 'The AI/ML service is not running. Please start the ML service and try again.'
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      error: 'JD analysis failed',
+      message: error.response?.data?.message || 'Failed to analyze job description. Please try again.'
+    });
   }
 });
 
@@ -78,28 +114,40 @@ router.post('/compare-candidates', protect, authorize('hr', 'admin'), async (req
   try {
     const { jd_text, candidate_resumes } = req.body;
     
-    // Mock candidate comparison
-    const comparison = [
-      {
-        candidate_id: 'candidate001',
-        name: 'John Doe',
-        similarity_score: 85.5,
-        comprehensive_score: 87.2,
-        skills_match: {
-          matched_skills: ['React', 'JavaScript'],
-          missing_skills: ['TypeScript'],
-          match_percentage: 66.7
-        },
-        recommendation: 'Recommended'
-      }
-    ];
+    if (!jd_text || !candidate_resumes || candidate_resumes.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid input',
+        message: 'Job description and candidate resumes are required for comparison.'
+      });
+    }
+
+    // Call ML service - no fallback
+    const response = await axios.post(`${AI_SERVICE_URL}/match-candidates`, 
+      { jd_text, candidate_resumes },
+      { timeout: 60000 }
+    );
     
-    res.json({
+    return res.json({
       success: true,
-      data: comparison
+      data: response.data
     });
   } catch (error) {
-    res.status(500).json({ error: 'Candidate comparison failed' });
+    console.error('Candidate comparison error:', error.message);
+    
+    if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
+      return res.status(503).json({ 
+        success: false, 
+        error: 'ML service unavailable',
+        message: 'The AI/ML service is not running. Please start the ML service and try again.'
+      });
+    }
+    
+    res.status(500).json({ 
+      success: false, 
+      error: 'Candidate comparison failed',
+      message: error.response?.data?.message || 'Failed to compare candidates. Please try again.'
+    });
   }
 });
 

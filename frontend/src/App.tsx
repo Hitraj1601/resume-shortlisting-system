@@ -18,6 +18,10 @@ import MyApplications from "./pages/dashboard/MyApplications";
 import UpdateResume from "./pages/dashboard/UpdateResume";
 import OpenVacancies from "./pages/dashboard/OpenVacancies";
 import ClosedVacancies from "./pages/dashboard/ClosedVacancies";
+import Settings from "./pages/dashboard/Settings";
+import Profile from "./pages/dashboard/Profile";
+import Messages from "./pages/dashboard/Messages";
+import VacancyApplicants from "./pages/dashboard/VacancyApplicants";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -68,6 +72,10 @@ const AppRoutes = () => {
       <Route path="/dashboard/job-search" element={<ProtectedRoute><JobSearch /></ProtectedRoute>} />
       <Route path="/dashboard/my-applications" element={<ProtectedRoute><MyApplications /></ProtectedRoute>} />
       <Route path="/dashboard/update-resume" element={<ProtectedRoute><UpdateResume /></ProtectedRoute>} />
+      <Route path="/dashboard/settings" element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+      <Route path="/dashboard/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
+      <Route path="/dashboard/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+      <Route path="/dashboard/vacancy/:id/applicants" element={<ProtectedRoute><VacancyApplicants /></ProtectedRoute>} />
       
       {/* Catch-all route */}
       <Route path="*" element={<NotFound />} />

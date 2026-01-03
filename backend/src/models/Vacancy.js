@@ -13,13 +13,10 @@ const vacancySchema = new mongoose.Schema({
   location: String,
   type: {
     type: String,
-    enum: ['full-time', 'part-time', 'contract', 'internship'],
-    default: 'full-time'
+    enum: ['Full-time', 'Part-time', 'Contract', 'Internship', 'Remote', 'Hybrid', 'Onsite', 'full-time', 'part-time', 'contract', 'internship', 'remote', 'hybrid', 'onsite'],
+    default: 'Full-time'
   },
-  experience: {
-    min: Number,
-    max: Number
-  },
+  experience: mongoose.Schema.Types.Mixed,  // Can be string "3-5 years" or object {min, max}
   skills: [String],
   description: {
     type: String,

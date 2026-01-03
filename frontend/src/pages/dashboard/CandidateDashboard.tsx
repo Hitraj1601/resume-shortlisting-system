@@ -39,9 +39,11 @@ const CandidateDashboard = () => {
       .filter(vacancy => {
         const resumeSkills = Object.values(resumeData.skillsAnalysis.by_category)
           .flat()
-          .map((skill: any) => skill.toLowerCase())
+          .map((skill: any) => typeof skill === 'string' ? skill.toLowerCase() : String(skill).toLowerCase())
         
-        const vacancySkills = vacancy.skills.map(skill => skill.toLowerCase())
+        const vacancySkills = (vacancy.skills || [])
+          .filter((skill: any) => skill != null)
+          .map((skill: any) => typeof skill === 'string' ? skill.toLowerCase() : String(skill).toLowerCase())
         
         // Check if any resume skill matches vacancy skills
         return resumeSkills.some(resumeSkill => 
@@ -64,22 +66,6 @@ const CandidateDashboard = () => {
   
   // Create a computed value for the first 3 applications to ensure reactivity
   const recentApplications = applications.slice(0, 3)
-  
-  // Monitor applications changes
-  useEffect(() => {
-    console.log('Applications changed in CandidateDashboard:', applications)
-  }, [applications])
-
-  // Manual refresh function for testing
-  const refreshApplications = () => {
-    const savedApplications = localStorage.getItem('resume_applications')
-    if (savedApplications) {
-      const parsedApplications = JSON.parse(savedApplications)
-      console.log('Manually refreshing applications from localStorage:', parsedApplications)
-      // Force a re-render by updating the forceUpdate
-      // This will trigger the useEffect in the context
-    }
-  }
 
   const stats = [
     {
@@ -176,20 +162,6 @@ const CandidateDashboard = () => {
               >
                 <FileText className="w-4 h-4 mr-2" />
                 Update Resume
-              </Button>
-              <Button
-                variant="outline"
-                onClick={refreshApplications}
-                className="text-sm"
-              >
-                🔄 Refresh
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => console.log('Current applications in CandidateDashboard:', applications)}
-                className="text-sm"
-              >
-                📊 Show State
               </Button>
             </div>
           </div>

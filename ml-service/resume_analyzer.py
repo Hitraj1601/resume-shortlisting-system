@@ -92,8 +92,13 @@ class ResumeAnalyzer:
         try:
             # Check if text extraction was successful
             if not text or text.startswith("Error") or text.startswith("PDF content could not be extracted"):
-                print(f"Text extraction failed or returned invalid content: {text[:100]}...")
-                return self._fallback_analysis("Resume text could not be extracted")
+                print(f"Text extraction failed or returned invalid content: {text[:100] if text else 'Empty'}...")
+                raise ValueError("Resume text could not be extracted. Please ensure the file is a valid PDF, DOC, DOCX, or TXT file.")
+            
+            # Validate resume content
+            validity_check = self._check_resume_validity(text)
+            if not validity_check["valid"]:
+                raise ValueError(validity_check["message"])
             
             if self.nlp:
                 doc = self.nlp(text.lower())
@@ -119,11 +124,17 @@ class ResumeAnalyzer:
             # Generate recommendations
             analysis["recommendations"] = self._generate_recommendations(analysis)
             
+            # Add warning if score is very low (likely not a tech resume)
+            if analysis["overall_score"] < 20 and analysis["skills_analysis"].get("total_count", 0) == 0:
+                analysis["warning"] = "This resume contains no recognizable technical skills. If you're applying for a technical position, consider highlighting your relevant technical skills and experience."
+            
             return analysis
+        except ValueError as e:
+            # Re-raise ValueError with the message
+            raise e
         except Exception as e:
             print(f"Error in analyze method: {str(e)}")
-            # Return basic fallback analysis
-            return self._fallback_analysis(text)
+            raise ValueError(f"Failed to analyze resume: {str(e)}")
     
     def _analyze_skills(self, doc):
         """Analyze and categorize skills from the resume text"""
@@ -312,22 +323,61 @@ class ResumeAnalyzer:
         return " ".join(summary_sentences)
     
     def _calculate_overall_score(self, analysis):
-        """Calculate overall resume score"""
-        # Calculate skills diversity score based on available data
-        skills_diversity = 0
+        """Calculate comprehensive overall resume score (0-100)"""
+        
+        # 1. SKILLS SCORE (35% weight) - Based on count and diversity
+        skills_score = 0
         if analysis["skills_analysis"]:
-            total_categories = len(analysis["skills_analysis"].get("by_category", {}))
+            total_skills = analysis["skills_analysis"].get("total_count", 0)
+            by_category = analysis["skills_analysis"].get("by_category", {})
+            total_categories = len(by_category)
+            
             if total_categories > 0:
-                # Calculate diversity based on how many skill categories have skills
-                categories_with_skills = sum(1 for cat in analysis["skills_analysis"]["by_category"].values() if cat.get("count", 0) > 0)
-                skills_diversity = (categories_with_skills / total_categories) * 100
+                # Skill count score (max 50 points for 15+ skills)
+                skill_count_score = min(total_skills / 15, 1) * 50
+                
+                # Diversity score (max 50 points for skills in 4+ categories)
+                categories_with_skills = sum(1 for cat in by_category.values() if cat.get("count", 0) > 0)
+                diversity_score = min(categories_with_skills / 4, 1) * 50
+                
+                skills_score = (skill_count_score + diversity_score) * 0.35
         
-        skills_score = skills_diversity * 0.4
-        experience_score = analysis["experience_analysis"]["score"] * 0.3
-        education_score = analysis["education_analysis"]["score"] * 0.2
-        contact_score = 100 if analysis["contact_info"]["email"] else 0 * 0.1
+        # 2. EXPERIENCE SCORE (30% weight) - Based on years and quality
+        experience_score = 0
+        if analysis["experience_analysis"]:
+            exp_base = analysis["experience_analysis"].get("score", 0)
+            years = analysis["experience_analysis"].get("years", 0)
+            
+            # Bonus for more years (up to 10 years)
+            years_bonus = min(years / 10, 1) * 20
+            experience_score = (exp_base + years_bonus) * 0.30
         
-        return round(skills_score + experience_score + education_score + contact_score)
+        # 3. EDUCATION SCORE (20% weight)
+        education_score = 0
+        if analysis["education_analysis"]:
+            edu_base = analysis["education_analysis"].get("score", 0)
+            has_degree = analysis["education_analysis"].get("has_degree", False)
+            
+            # Bonus for having a degree
+            degree_bonus = 20 if has_degree else 0
+            education_score = min(edu_base + degree_bonus, 100) * 0.20
+        
+        # 4. CONTACT & PROFESSIONALISM SCORE (15% weight)
+        contact_score = 0
+        if analysis["contact_info"]:
+            has_email = 40 if analysis["contact_info"].get("email") else 0
+            has_phone = 30 if analysis["contact_info"].get("phone") else 0
+            has_linkedin = 30 if analysis["contact_info"].get("linkedin") else 0
+            contact_score = (has_email + has_phone + has_linkedin) * 0.15
+        
+        # Calculate total score
+        total_score = skills_score + experience_score + education_score + contact_score
+        
+        # Ensure minimum score of 20 if resume has any content
+        if total_score < 20 and analysis["skills_analysis"].get("total_count", 0) > 0:
+            total_score = max(total_score, 25)
+        
+        return round(min(total_score, 100))
     
     def _generate_recommendations(self, analysis):
         """Generate improvement recommendations"""
@@ -380,27 +430,63 @@ class ResumeAnalyzer:
         }
     
     def _fallback_analysis(self, text):
-        """Basic fallback analysis when main analysis fails"""
-        return {
-            "overall_score": 75,
-            "skills_analysis": {
-                "categories": {},
-                "total_skills": 0,
-                "diversity_score": 50
-            },
-            "experience_analysis": {
-                "years": 3,
-                "score": 70,
-                "level": "Mid-level"
-            },
-            "education_analysis": {
-                "score": 80,
-                "has_degree": True
-            },
-            "contact_info": {
-                "email": None,
-                "phone": None
-            },
-            "summary": "Resume analysis completed with fallback method.",
-            "recommendations": ["Resume processed successfully with basic analysis"]
-        }
+        """Fallback analysis when main analysis fails - returns error instead of fake data"""
+        raise ValueError("Unable to analyze resume. The resume content could not be properly extracted or is empty.")
+
+    def _check_resume_validity(self, text):
+        """Check if the resume is valid for technical job analysis"""
+        if not text or len(text.strip()) < 50:
+            return {
+                "valid": False,
+                "reason": "empty",
+                "message": "The resume appears to be empty or contains insufficient content. Please upload a valid resume with your professional details."
+            }
+        
+        # Check for non-technical/irrelevant content
+        non_tech_indicators = [
+            "recipe", "cooking", "ingredients", "tablespoon", "teaspoon", "bake", "fry",
+            "menu", "restaurant", "dish", "cuisine", "chef", "kitchen",
+            "fiction", "chapter", "novel", "story", "once upon a time",
+            "lyrics", "verse", "chorus", "song"
+        ]
+        
+        text_lower = text.lower()
+        found_indicators = [ind for ind in non_tech_indicators if ind in text_lower]
+        
+        if len(found_indicators) >= 3:
+            return {
+                "valid": False,
+                "reason": "non_technical",
+                "message": f"This document appears to be a {self._detect_document_type(text_lower)}, not a professional resume. Please upload a valid resume with your work experience, skills, and education."
+            }
+        
+        # Check for minimum resume-like content
+        resume_indicators = [
+            "experience", "education", "skills", "work", "job", "project",
+            "university", "college", "degree", "company", "position", "role",
+            "email", "@", "phone", "linkedin", "github", "objective", "summary"
+        ]
+        
+        found_resume_content = sum(1 for ind in resume_indicators if ind in text_lower)
+        
+        if found_resume_content < 2:
+            return {
+                "valid": False,
+                "reason": "not_resume",
+                "message": "This document does not appear to be a professional resume. A resume should include sections like experience, education, skills, and contact information."
+            }
+        
+        return {"valid": True, "reason": None, "message": None}
+    
+    def _detect_document_type(self, text_lower):
+        """Detect what type of non-resume document this might be"""
+        if any(word in text_lower for word in ["recipe", "cooking", "ingredients", "bake"]):
+            return "recipe or cooking document"
+        elif any(word in text_lower for word in ["chapter", "novel", "story", "fiction"]):
+            return "story or fiction document"
+        elif any(word in text_lower for word in ["lyrics", "verse", "chorus"]):
+            return "song lyrics"
+        elif any(word in text_lower for word in ["menu", "restaurant", "dish"]):
+            return "menu or restaurant document"
+        else:
+            return "non-resume document"

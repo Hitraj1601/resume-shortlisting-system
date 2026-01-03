@@ -24,12 +24,16 @@ const userSchema = new mongoose.Schema({
     default: 'candidate'
   },
   company: String,
-  experience: Number,
+  experience: String,  // e.g., "3 years", "5+ years"
   skills: [String],
   avatar: String,
   phone: String,
   location: String,
   bio: String,
+  isVerified: {
+    type: Boolean,
+    default: false
+  },
   isActive: {
     type: Boolean,
     default: true

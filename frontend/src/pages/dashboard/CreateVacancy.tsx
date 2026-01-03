@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { useNavigate } from 'react-router-dom'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Badge } from '@/components/ui/badge'
+import { Alert, AlertDescription } from '@/components/ui/alert'
 import DashboardLayout from '@/components/DashboardLayout'
 import { 
   PlusCircle, 
@@ -15,7 +16,8 @@ import {
   Users,
   Briefcase,
   MapPin,
-  DollarSign
+  DollarSign,
+  AlertTriangle
 } from 'lucide-react'
 import { useToast } from '@/hooks/use-toast'
 import { useVacancy } from '@/contexts/VacancyContext'
@@ -23,7 +25,7 @@ import { useVacancy } from '@/contexts/VacancyContext'
 const CreateVacancy = () => {
   const navigate = useNavigate()
   const { toast } = useToast()
-  const { addVacancy } = useVacancy()
+  const { addVacancy, vacancies } = useVacancy()
   const [isLoading, setIsLoading] = useState(false)
   
   const [formData, setFormData] = useState({
@@ -42,6 +44,22 @@ const CreateVacancy = () => {
   
   const [skillInput, setSkillInput] = useState('')
 
+  // Check for duplicate vacancies
+  const duplicateWarning = useMemo(() => {
+    if (!formData.title || !formData.company) return null
+    
+    const existing = vacancies.find(v => 
+      v.title.toLowerCase() === formData.title.toLowerCase() &&
+      v.company.toLowerCase() === formData.company.toLowerCase() &&
+      v.status === 'open'
+    )
+    
+    if (existing) {
+      return `A similar vacancy "${existing.title}" at ${existing.company} already exists and is open.`
+    }
+    return null
+  }, [formData.title, formData.company, vacancies])
+
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     setFormData(prev => ({
       ...prev,
@@ -50,13 +68,27 @@ const CreateVacancy = () => {
   }
 
   const addSkill = () => {
-    if (skillInput.trim() && !formData.skills.includes(skillInput.trim())) {
+    if (!skillInput.trim()) return
+    
+    // Split by comma, semicolon, or pipe to support multiple skills at once
+    const newSkills = skillInput
+      .split(/[,;|]/)
+      .map(s => s.trim())
+      .filter(s => s && !formData.skills.includes(s))
+    
+    if (newSkills.length > 0) {
+      if (newSkills.length > 1) {
+        toast({
+          title: "Multiple skills detected",
+          description: `Added ${newSkills.length} skills: ${newSkills.join(', ')}`,
+        })
+      }
       setFormData(prev => ({
         ...prev,
-        skills: [...prev.skills, skillInput.trim()]
+        skills: [...prev.skills, ...newSkills]
       }))
-      setSkillInput('')
     }
+    setSkillInput('')
   }
 
   const removeSkill = (skillToRemove: string) => {
@@ -72,7 +104,7 @@ const CreateVacancy = () => {
 
     try {
       // Add the new vacancy using the context
-      addVacancy({
+      const success = await addVacancy({
         title: formData.title,
         company: formData.company,
         location: formData.location,
@@ -86,19 +118,27 @@ const CreateVacancy = () => {
         skills: formData.skills
       })
 
-      toast({
-        title: "Vacancy Created Successfully!",
-        description: `${formData.title} has been posted and is now live.`,
-      })
-      
-      setIsLoading(false)
-      navigate('/dashboard')
+      if (success) {
+        toast({
+          title: "Vacancy Created Successfully!",
+          description: `${formData.title} has been posted and is now live.`,
+        })
+        navigate('/dashboard')
+      } else {
+        toast({
+          title: "Error Creating Vacancy",
+          description: "Failed to create vacancy. Please check your connection and try again.",
+          variant: "destructive"
+        })
+      }
     } catch (error) {
+      console.error('Error creating vacancy:', error)
       toast({
         title: "Error Creating Vacancy",
         description: "There was an error creating the vacancy. Please try again.",
         variant: "destructive"
       })
+    } finally {
       setIsLoading(false)
     }
   }
@@ -114,6 +154,15 @@ const CreateVacancy = () => {
           <h1 className="text-3xl font-bold">Create New Vacancy</h1>
           <p className="text-muted-foreground">Post a new job opening and start receiving applications</p>
         </div>
+
+        {duplicateWarning && (
+          <Alert variant="destructive" className="mb-6">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>
+              {duplicateWarning} Consider updating the existing vacancy instead of creating a duplicate.
+            </AlertDescription>
+          </Alert>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid lg:grid-cols-3 gap-6">
@@ -232,13 +281,13 @@ const CreateVacancy = () => {
                 <CardHeader>
                   <CardTitle>Required Skills</CardTitle>
                   <CardDescription>
-                    Add the key skills required for this position
+                    Add the key skills required for this position. You can add multiple skills at once by separating them with commas.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="flex gap-2">
                     <Input
-                      placeholder="Add a skill (e.g. React, Python, etc.)"
+                      placeholder="e.g. React, Python, TypeScript (separate with commas)"
                       value={skillInput}
                       onChange={(e) => setSkillInput(e.target.value)}
                       onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addSkill())}

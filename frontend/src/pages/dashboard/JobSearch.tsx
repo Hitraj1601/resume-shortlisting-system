@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,12 +15,12 @@ interface Job {
   company: string;
   location: string;
   type: string;
-  salary: string;
+  salary: string | { min?: number; max?: number; currency?: string };
   deadline: string;
   description: string;
-  requirements: string;
+  requirements: string | string[];
   skills: string[];
-  experience: string;
+  experience: string | { min?: number; max?: number };
   matchScore?: number;
 }
 
@@ -31,68 +31,90 @@ const JobSearch: React.FC = () => {
   const [selectedExperience, setSelectedExperience] = useState('all');
   const [showFilters, setShowFilters] = useState(false);
   const [sortBy, setSortBy] = useState('relevance');
-  const { resumeData, applyToJob } = useResume();
+  const { resumeData, applyToJob, isJobApplied } = useResume();
   const { openVacancies } = useVacancy();
 
-  // Calculate match score for a vacancy
-  const getMatchScore = (vacancy: any): number => {
-    if (!resumeData?.skillsAnalysis?.by_category) {
-      return Math.floor(Math.random() * 30) + 70; // Fallback score
+  // Helper to format salary for display
+  const formatSalary = (salary: any): string => {
+    if (!salary) return 'Not specified';
+    if (typeof salary === 'string') return salary;
+    if (typeof salary === 'object') {
+      const { min, max, currency = 'USD' } = salary;
+      if (min && max) return `${currency} ${min.toLocaleString()} - ${max.toLocaleString()}`;
+      if (min) return `${currency} ${min.toLocaleString()}+`;
+      if (max) return `Up to ${currency} ${max.toLocaleString()}`;
+      return 'Not specified';
     }
-
-    try {
-      // Extract skills from resume analysis
-      const resumeSkills = Object.values(resumeData.skillsAnalysis.by_category)
-        .flat()
-        .map((skill: any) => skill.toLowerCase());
-
-      // Get vacancy skills
-      const vacancySkills = vacancy.skills?.map((skill: string) => skill.toLowerCase()) || [];
-
-      if (vacancySkills.length === 0) {
-        return Math.floor(Math.random() * 20) + 70; // Fallback if no skills
-      }
-
-      // Calculate skills match percentage
-      const matchedSkills = vacancySkills.filter(skill => 
-        resumeSkills.some(resumeSkill => 
-          resumeSkill.includes(skill) || skill.includes(resumeSkill)
-        )
-      );
-
-      const skillsMatch = Math.round((matchedSkills.length / vacancySkills.length) * 100);
-      
-      // Base score with skills bonus
-      let baseScore = 70;
-      if (skillsMatch > 50) {
-        baseScore += Math.min(skillsMatch - 50, 30); // Max 30 points bonus
-      }
-
-      return Math.min(baseScore, 100);
-    } catch (error) {
-      console.error('Error calculating match score:', error);
-      return Math.floor(Math.random() * 20) + 70; // Fallback score
-    }
+    return String(salary);
   };
 
-  // Convert vacancies to job format and add match scores
-  const jobs: Job[] = openVacancies.map(vacancy => {
-    const matchScore = getMatchScore(vacancy);
-    return {
-      id: vacancy.id,
-      title: vacancy.title,
-      company: vacancy.company,
-      location: vacancy.location,
-      type: vacancy.type,
-      salary: vacancy.salary,
-      deadline: vacancy.deadline,
-      description: vacancy.description,
-      requirements: vacancy.requirements,
-      skills: vacancy.skills,
-      experience: vacancy.experience,
-      matchScore
+  // Memoize jobs with match scores to prevent recalculation on every render
+  const jobs: Job[] = useMemo(() => {
+    // Calculate match score for a vacancy - deterministic calculation
+    const calculateMatchScore = (vacancy: any, resumeSkillsData: any): number => {
+      if (!resumeSkillsData?.by_category) {
+        // Generate a deterministic score based on vacancy id hash
+        const hash = vacancy.id?.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0) || 0;
+        return 70 + (hash % 25); // Score between 70-94 based on id
+      }
+
+      try {
+        // Extract skills from resume analysis
+        const resumeSkills = Object.values(resumeSkillsData.by_category)
+          .flat()
+          .map((skill: any) => typeof skill === 'string' ? skill.toLowerCase() : String(skill).toLowerCase());
+
+        // Get vacancy skills
+        const vacancySkills = vacancy.skills?.map((skill: string) => skill.toLowerCase()) || [];
+
+        if (vacancySkills.length === 0) {
+          // Generate deterministic score based on vacancy id
+          const hash = vacancy.id?.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0) || 0;
+          return 70 + (hash % 20); // Score between 70-89 based on id
+        }
+
+        // Calculate skills match percentage
+        const matchedSkills = vacancySkills.filter((skill: string) => 
+          resumeSkills.some((resumeSkill: string) => 
+            resumeSkill.includes(skill) || skill.includes(resumeSkill)
+          )
+        );
+
+        const skillsMatch = Math.round((matchedSkills.length / vacancySkills.length) * 100);
+        
+        // Base score with skills bonus
+        let baseScore = 70;
+        if (skillsMatch > 50) {
+          baseScore += Math.min(skillsMatch - 50, 30); // Max 30 points bonus
+        }
+
+        return Math.min(baseScore, 100);
+      } catch (error) {
+        console.error('Error calculating match score:', error);
+        // Generate deterministic fallback based on vacancy id
+        const hash = vacancy.id?.split('').reduce((acc: number, char: string) => acc + char.charCodeAt(0), 0) || 0;
+        return 70 + (hash % 20);
+      }
     };
-  });
+
+    return openVacancies.map(vacancy => {
+      const matchScore = calculateMatchScore(vacancy, resumeData?.skillsAnalysis);
+      return {
+        id: vacancy.id,
+        title: vacancy.title,
+        company: vacancy.company,
+        location: vacancy.location,
+        type: vacancy.type,
+        salary: vacancy.salary,
+        deadline: vacancy.deadline,
+        description: vacancy.description,
+        requirements: vacancy.requirements,
+        skills: vacancy.skills,
+        experience: vacancy.experience,
+        matchScore
+      };
+    });
+  }, [openVacancies, resumeData?.skillsAnalysis]);
 
 
 
@@ -113,7 +135,7 @@ const JobSearch: React.FC = () => {
                          job.description.toLowerCase().includes(searchTerm.toLowerCase());
     
     const matchesType = selectedType === 'all' || job.type === selectedType;
-    const matchesLocation = selectedLocation === 'all' || job.location === selectedLocation;
+    const matchesLocation = selectedLocation === 'all' || job.location.toLowerCase().includes(selectedLocation.toLowerCase());
     
     // Experience level filtering (you can customize this based on your vacancy data structure)
     const matchesExperience = selectedExperience === 'all' || true; // Placeholder for now
@@ -140,10 +162,14 @@ const JobSearch: React.FC = () => {
       case 'deadline':
         return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
       case 'salary':
-        // Extract numeric value from salary string for comparison
-        const aSalary = parseInt(a.salary.replace(/[^0-9]/g, ''));
-        const bSalary = parseInt(b.salary.replace(/[^0-9]/g, ''));
-        return bSalary - aSalary;
+        // Extract numeric value from salary for comparison
+        const getSalaryValue = (salary: any): number => {
+          if (!salary) return 0;
+          if (typeof salary === 'string') return parseInt(salary.replace(/[^0-9]/g, '')) || 0;
+          if (typeof salary === 'object') return salary.max || salary.min || 0;
+          return 0;
+        };
+        return getSalaryValue(b.salary) - getSalaryValue(a.salary);
       default:
         return 0; // relevance - no sorting
     }
@@ -232,17 +258,15 @@ const JobSearch: React.FC = () => {
                 
                 <div>
                   <label className="text-sm font-medium mb-2 block">Location</label>
-                  <select
-                    value={selectedLocation}
-                    onChange={(e) => setSelectedLocation(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    {locations.map(location => (
-                      <option key={location} value={location}>
-                        {location === 'all' ? 'All Locations' : location}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="relative">
+                    <MapPin className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 h-4 w-4" />
+                    <Input
+                      placeholder="Enter city or location..."
+                      value={selectedLocation === 'all' ? '' : selectedLocation}
+                      onChange={(e) => setSelectedLocation(e.target.value || 'all')}
+                      className="pl-10"
+                    />
+                  </div>
                 </div>
                 
                 <div>
@@ -339,7 +363,7 @@ const JobSearch: React.FC = () => {
                
                <div className="flex items-center text-sm text-gray-600">
                  <DollarSign className="h-4 w-4 mr-2" />
-                 {job.salary}
+                 {formatSalary(job.salary)}
                </div>
                
                <div className="flex items-center text-sm text-gray-600">
@@ -349,7 +373,9 @@ const JobSearch: React.FC = () => {
                
                <div className="flex items-center text-sm text-gray-600">
                  <Star className="h-4 w-4 mr-2" />
-                 {job.experience || 'Not specified'}
+                 {typeof job.experience === 'object' 
+                   ? `${job.experience.min || 0}-${job.experience.max || 0} years`
+                   : (job.experience || 'Not specified')}
                </div>
               
               <div className="space-y-2">
@@ -374,9 +400,14 @@ const JobSearch: React.FC = () => {
               <Button 
                 onClick={() => handleApply(job)}
                 className="w-full"
-                disabled={!resumeData}
+                disabled={!resumeData || isJobApplied(job.id)}
+                variant={isJobApplied(job.id) ? "secondary" : "default"}
               >
-                {resumeData ? 'Apply Now' : 'Upload Resume First'}
+                {!resumeData 
+                  ? 'Upload Resume First' 
+                  : isJobApplied(job.id) 
+                    ? '✓ Applied' 
+                    : 'Apply Now'}
               </Button>
             </CardContent>
           </Card>

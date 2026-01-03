@@ -305,18 +305,6 @@ const MyApplications = () => {
                         Follow Up
                       </Button>
                     )}
-                    {/* Status Update Dropdown */}
-                    <select
-                      value={app.status}
-                      onChange={(e) => handleStatusUpdate(app.id, e.target.value)}
-                      className="px-3 py-2 border border-input rounded-md bg-background text-sm"
-                    >
-                      <option value="Applied">Applied</option>
-                      <option value="Under Review">Under Review</option>
-                      <option value="Interview">Interview</option>
-                      <option value="Accepted">Accepted</option>
-                      <option value="Rejected">Rejected</option>
-                    </select>
                     
                     <AlertDialog>
                       <AlertDialogTrigger asChild>

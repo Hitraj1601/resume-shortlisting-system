@@ -14,7 +14,8 @@ import {
   Settings,
   LogOut,
   Bell,
-  User
+  User,
+  MessageCircle
 } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
@@ -51,6 +52,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
       label: 'Closed Vacancies',
       count: closedVacancies.length
     },
+    { href: '/dashboard/messages', icon: MessageCircle, label: 'Messages' },
   ]
 
   const candidateNavItems: NavItem[] = [
@@ -58,6 +60,7 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
     { href: '/dashboard/job-search', icon: Search, label: 'Job Search' },
     { href: '/dashboard/my-applications', icon: FileText, label: 'My Applications' },
     { href: '/dashboard/update-resume', icon: FileText, label: 'Update Resume' },
+    { href: '/dashboard/messages', icon: MessageCircle, label: 'Messages' },
   ]
 
   const navItems: NavItem[] = user?.role === 'hr' ? hrNavItems : candidateNavItems
@@ -88,15 +91,18 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
         </div>
 
         {/* User Profile */}
-        <div className="p-6 border-b">
+        <div 
+          className="p-6 border-b cursor-pointer hover:bg-muted/50 transition-colors"
+          onClick={() => navigate('/dashboard/profile')}
+        >
           <div className="flex items-center space-x-3">
             <Avatar>
               <AvatarFallback className="bg-gradient-primary text-white">
-                {user?.name.split(' ').map(n => n[0]).join('')}
+                {user?.name?.split(' ').map(n => n[0]).join('') || 'U'}
               </AvatarFallback>
             </Avatar>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">{user?.name}</p>
+              <p className="text-sm font-medium truncate">{user?.name || 'User'}</p>
               <p className="text-xs text-muted-foreground truncate">{user?.email}</p>
               <Badge 
                 variant={user?.role === 'hr' ? 'default' : 'secondary'} 
@@ -175,12 +181,21 @@ const DashboardLayout = ({ children }: DashboardLayoutProps) => {
             </div>
             
             <div className="flex items-center space-x-4">
-              <Button variant="ghost" size="icon" className="relative">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                className="relative"
+                onClick={() => navigate('/dashboard')}
+              >
                 <Bell className="w-5 h-5" />
                 <Badge className="absolute -top-1 -right-1 w-2 h-2 p-0 bg-destructive" />
               </Button>
               
-              <Button variant="ghost" size="icon">
+              <Button 
+                variant="ghost" 
+                size="icon"
+                onClick={() => navigate('/dashboard/profile')}
+              >
                 <User className="w-5 h-5" />
               </Button>
             </div>

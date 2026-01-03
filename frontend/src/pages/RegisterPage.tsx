@@ -68,7 +68,7 @@ const RegisterPage = () => {
     setIsLoading(true)
 
     try {
-      const success = await register({
+      const result = await register({
         name: formData.name,
         email: formData.email,
         password: formData.password,
@@ -76,7 +76,7 @@ const RegisterPage = () => {
         company: formData.company
       })
       
-      if (success) {
+      if (result.success) {
         toast({
           title: "Registration successful!",
           description: `Welcome to ResumeAI! Setting up your ${formData.role} dashboard.`,
@@ -85,7 +85,7 @@ const RegisterPage = () => {
       } else {
         toast({
           title: "Registration failed",
-          description: "Unable to create account. Please try again.",
+          description: result.message || "Unable to create account. Please try again.",
           variant: "destructive",
         })
       }

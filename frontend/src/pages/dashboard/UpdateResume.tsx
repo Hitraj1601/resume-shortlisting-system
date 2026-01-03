@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/custom-button'
@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge'
 import { Progress } from '@/components/ui/progress'
 import DashboardLayout from '@/components/DashboardLayout'
 import { useResume } from '@/contexts/ResumeContext'
+import { useVacancy } from '@/contexts/VacancyContext'
 import { 
   Upload,
   FileText,
@@ -25,10 +26,49 @@ import {
 
 const UpdateResume = () => {
   const { resumeData, uploadResume, deleteResume, mlServiceAvailable, setResumeData } = useResume()
+  const { openVacancies } = useVacancy()
   const [isUploading, setUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [error, setError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // Calculate match scores for vacancies based on resume skills
+  const matchedJobs = useMemo(() => {
+    if (!resumeData?.skillsAnalysis?.by_category || !openVacancies.length) {
+      return []
+    }
+
+    // Extract all resume skills
+    const resumeSkills: string[] = []
+    Object.values(resumeData.skillsAnalysis.by_category).forEach((category: any) => {
+      if (category?.skills && Array.isArray(category.skills)) {
+        resumeSkills.push(...category.skills.map((s: string) => s.toLowerCase()))
+      }
+    })
+
+    // Calculate match score for each vacancy
+    const scoredJobs = openVacancies.map(vacancy => {
+      const vacancySkills = vacancy.skills?.map((s: string) => s.toLowerCase()) || []
+      
+      if (vacancySkills.length === 0) {
+        return { ...vacancy, matchScore: 70, matchedSkills: [] }
+      }
+
+      const matchedSkills = vacancySkills.filter((skill: string) =>
+        resumeSkills.some((resumeSkill: string) =>
+          resumeSkill.includes(skill) || skill.includes(resumeSkill)
+        )
+      )
+
+      const matchPercentage = Math.round((matchedSkills.length / vacancySkills.length) * 100)
+      const matchScore = Math.min(70 + Math.round(matchPercentage * 0.3), 100)
+
+      return { ...vacancy, matchScore, matchedSkills }
+    })
+
+    // Sort by match score and return top 3
+    return scoredJobs.sort((a, b) => b.matchScore - a.matchScore).slice(0, 3)
+  }, [resumeData?.skillsAnalysis, openVacancies])
 
   // Debug logging
   console.log('UpdateResume render:', { resumeData, mlServiceAvailable, error })
@@ -37,34 +77,51 @@ const UpdateResume = () => {
     const file = event.target.files?.[0]
     if (!file) return
 
+    // Reset file input so the same file can be selected again
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+
     setError(null)
     setUploading(true)
     setUploadProgress(0)
 
-    try {
-      // Simulate file upload progress
-      const interval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 100) {
-            clearInterval(interval)
-            setUploading(false)
-            return 100
-          }
-          return prev + 10
-        })
-      }, 200)
+    // Start progress animation
+    const progressInterval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) {
+          return 90 // Cap at 90% until upload completes
+        }
+        return prev + 10
+      })
+    }, 200)
 
+    try {
       // Upload resume using context
       await uploadResume(file)
       console.log('Resume upload successful')
+      
+      // Complete progress
+      clearInterval(progressInterval)
+      setUploadProgress(100)
+      
+      // Reset after a short delay
+      setTimeout(() => {
+        setUploading(false)
+        setUploadProgress(0)
+      }, 500)
     } catch (err) {
       console.error('Resume upload failed:', err)
+      clearInterval(progressInterval)
       setError(err instanceof Error ? err.message : 'Upload failed')
       setUploading(false)
+      setUploadProgress(0)
       
       // Offer fallback option
       if (confirm('ML service failed. Would you like to use fallback analysis?')) {
         // Create fallback resume data
+        // Generate deterministic score based on file name hash
+        const fileHash = file.name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
         const fallbackResume = {
           id: 'resume1',
           fileName: file.name,
@@ -74,8 +131,8 @@ const UpdateResume = () => {
           skills: ['React', 'JavaScript', 'Python', 'Node.js', 'TypeScript', 'Git', 'AWS'],
           experience: '3 years',
           education: 'Bachelor in Computer Science',
-          aiScore: Math.floor(Math.random() * 20) + 80,
-          matchScore: Math.floor(Math.random() * 20) + 80
+          aiScore: 80 + (fileHash % 15), // Deterministic score 80-94 based on filename
+          matchScore: 80 + ((fileHash * 7) % 15) // Deterministic score 80-94 based on filename
         }
         setResumeData(fallbackResume)
         setError(null)
@@ -135,45 +192,20 @@ const UpdateResume = () => {
             </div>
           </div>
                      <div className="flex gap-2">
+             <input
+               ref={fileInputRef}
+               type="file"
+               accept=".pdf,.doc,.docx"
+               onChange={handleFileUpload}
+               className="hidden"
+             />
              <Button
                variant="outline"
-               onClick={() => console.log('Current state:', { resumeData, mlServiceAvailable })}
-               className="text-sm"
+               onClick={() => fileInputRef.current?.click()}
+               disabled={isUploading}
              >
-               🔍 Debug State
-             </Button>
-             <Button
-               variant="outline"
-               onClick={async () => {
-                 try {
-                   const response = await fetch('http://localhost:8000/health')
-                   const data = await response.json()
-                   console.log('ML Service Health Check:', data)
-                   alert(`ML Service Status: ${response.ok ? 'OK' : 'Failed'}\nResponse: ${JSON.stringify(data, null, 2)}`)
-                 } catch (err) {
-                   console.error('ML Service Health Check Failed:', err)
-                   alert(`ML Service Error: ${err}`)
-                 }
-               }}
-               className="text-sm"
-             >
-               🏥 Test ML Service
-             </Button>
-             <Button
-               variant="outline"
-               onClick={() => {
-                 if (resumeData?.skillsAnalysis) {
-                   console.log('Skills Analysis Raw Data:', resumeData.skillsAnalysis)
-                   console.log('Skills Array:', resumeData.skills)
-                   console.log('Skills Count:', resumeData.skills?.length)
-                   alert(`Skills Analysis Structure:\n${JSON.stringify(resumeData.skillsAnalysis, null, 2)}\n\nSkills Array: ${JSON.stringify(resumeData.skills, null, 2)}`)
-                 } else {
-                   alert('No skills analysis data available')
-                 }
-               }}
-               className="text-sm"
-             >
-               📊 Debug Skills
+               <Upload className="w-4 h-4 mr-2" />
+               {resumeData ? 'Upload New Resume' : 'Upload Resume'}
              </Button>
            </div>
         </div>
@@ -247,17 +279,44 @@ const UpdateResume = () => {
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        if (resumeData.fileUrl) {
+                          window.open(resumeData.fileUrl, '_blank')
+                        } else {
+                          alert('Resume preview not available. Please re-upload your resume.')
+                        }
+                      }}
+                    >
                       <Eye className="w-4 h-4 mr-2" />
                       Preview
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => {
+                        if (resumeData.fileUrl) {
+                          const link = document.createElement('a')
+                          link.href = resumeData.fileUrl
+                          link.download = resumeData.fileName || 'resume.pdf'
+                          link.click()
+                        } else {
+                          alert('Resume file not available for download.')
+                        }
+                      }}
+                    >
                       <Download className="w-4 h-4 mr-2" />
                       Download
                     </Button>
-                    <Button variant="outline" size="sm">
+                    <Button 
+                      variant="outline" 
+                      size="sm"
+                      onClick={() => fileInputRef.current?.click()}
+                    >
                       <Edit3 className="w-4 h-4 mr-2" />
-                      Edit
+                      Replace
                     </Button>
                     <Button 
                       variant="outline" 
@@ -456,61 +515,80 @@ const UpdateResume = () => {
                 Job Matching Preview
               </CardTitle>
               <CardDescription>
-                See how your resume matches with current job openings
+                Top matching jobs based on your resume skills
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                                 {/* Dynamic Job Categories Based on Resume Skills */}
-                 {resumeData?.skillsAnalysis?.by_category && Object.entries(resumeData.skillsAnalysis.by_category)
-                   .filter(([category, data]: [string, any]) => data?.count > 0 && data?.skills && data.skills.length > 0)
-                   .slice(0, 3)
-                   .map(([category, data]: [string, any]) => {
-                     const categorySkills = data?.skills || []
-                     const totalSkills = resumeData.skillsAnalysis?.total_count || 1
-                     const categoryWeight = (data?.count / totalSkills) * 100
-                     
-                     // Calculate market demand based on actual skills count and category
-                     const marketDemand = Math.min(75 + (data?.count || 0) * 5, 95)
-                     
-                     // Determine experience level based on actual skills count
-                     const skillCount = data?.count || 0
-                     const experienceLevel = skillCount >= 8 ? 'Senior Level' : skillCount >= 5 ? 'Mid Level' : skillCount >= 2 ? 'Junior Level' : 'Entry Level'
-                     
-                     return (
-                       <div key={category} className="flex items-center justify-between p-4 border rounded-lg">
-                         <div className="flex-1">
-                           <h4 className="font-semibold capitalize">{category.replace('_', ' ')} Developer</h4>
-                           <p className="text-sm text-muted-foreground">Based on your {data?.count || 0} skills</p>
-                           <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
-                             <span className="flex items-center gap-1">
-                               <Star className="w-3 h-3" />
-                               {data?.count || 0} skills identified
-                             </span>
-                             <span className="flex items-center gap-1">
-                               <Briefcase className="w-3 h-3" />
-                               {experienceLevel}
-                             </span>
-                           </div>
-                         </div>
-                         <div className="text-right">
-                           <div className="text-lg font-bold text-primary">{Math.round(marketDemand)}%</div>
-                           <div className="text-xs text-muted-foreground">Market Demand</div>
-                           <div className="text-xs text-muted-foreground mt-1">
-                             {categorySkills.length > 0 ? categorySkills.slice(0, 3).join(', ') : 'No skills found'}
-                           </div>
-                         </div>
-                       </div>
-                     )
-                   })}
-                 
-                 {/* Fallback if no skills analysis */}
-                 {(!resumeData?.skillsAnalysis?.by_category || Object.keys(resumeData.skillsAnalysis?.by_category || {}).length === 0) && (
-                   <div className="text-center p-8 text-muted-foreground">
-                     <Star className="w-12 h-12 mx-auto mb-4 text-gray-300" />
-                     <p>Upload your resume to see dynamic job matching insights</p>
-                   </div>
-                 )}
+                {/* Dynamic Job Matches from actual vacancies */}
+                {matchedJobs.length > 0 ? (
+                  matchedJobs.map((job: any) => {
+                    const getMatchColor = (score: number) => {
+                      if (score >= 90) return 'text-green-600'
+                      if (score >= 80) return 'text-blue-600'
+                      if (score >= 70) return 'text-yellow-600'
+                      return 'text-gray-600'
+                    }
+
+                    const formatExperience = (exp: any) => {
+                      if (!exp) return 'Not specified'
+                      if (typeof exp === 'string') return exp
+                      if (typeof exp === 'object') {
+                        return `${exp.min || 0}-${exp.max || 0} years`
+                      }
+                      return String(exp)
+                    }
+
+                    return (
+                      <div key={job.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex-1">
+                          <h4 className="font-semibold">{job.title}</h4>
+                          <p className="text-sm text-muted-foreground">{job.company}</p>
+                          <div className="flex items-center gap-4 mt-2 text-xs text-muted-foreground">
+                            <span className="flex items-center gap-1">
+                              <MapPin className="w-3 h-3" />
+                              {job.location || 'Remote'}
+                            </span>
+                            <span className="flex items-center gap-1">
+                              <Briefcase className="w-3 h-3" />
+                              {formatExperience(job.experience)}
+                            </span>
+                          </div>
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {job.skills?.slice(0, 4).map((skill: string, idx: number) => (
+                              <Badge 
+                                key={idx} 
+                                variant={job.matchedSkills?.includes(skill.toLowerCase()) ? "default" : "secondary"}
+                                className="text-xs"
+                              >
+                                {skill}
+                              </Badge>
+                            ))}
+                            {job.skills?.length > 4 && (
+                              <Badge variant="outline" className="text-xs">
+                                +{job.skills.length - 4} more
+                              </Badge>
+                            )}
+                          </div>
+                        </div>
+                        <div className="text-right ml-4">
+                          <div className={`text-2xl font-bold ${getMatchColor(job.matchScore)}`}>
+                            {job.matchScore}%
+                          </div>
+                          <div className="text-xs text-muted-foreground">Match Score</div>
+                        </div>
+                      </div>
+                    )
+                  })
+                ) : (
+                  <div className="text-center p-8 text-muted-foreground">
+                    <Star className="w-12 h-12 mx-auto mb-4 text-gray-300" />
+                    <p>{openVacancies.length === 0 
+                      ? 'No job openings available at the moment' 
+                      : 'Upload your resume to see matching job opportunities'}
+                    </p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
