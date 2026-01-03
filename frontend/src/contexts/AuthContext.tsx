@@ -82,6 +82,15 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (response.success && response.user && response.token) {
         // Store token
         localStorage.setItem('auth_token', response.token)
+        
+        // Save user info for session recovery
+        localStorage.setItem('saved_user_info', JSON.stringify({
+          email: response.user.email,
+          name: response.user.name,
+          role: response.user.role,
+          lastLogin: new Date().toISOString()
+        }))
+        
         setUser(response.user)
         return { success: true }
       }
@@ -119,6 +128,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } finally {
       setUser(null)
       localStorage.removeItem('auth_token')
+      localStorage.removeItem('saved_user_info')
     }
   }
 

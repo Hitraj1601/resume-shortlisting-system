@@ -146,13 +146,24 @@ const HRDashboard = () => {
                       </Badge>
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => navigate(`/dashboard/vacancy/${vacancy.id}`)}
-                  >
-                    <Eye className="w-4 h-4" />
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => navigate(`/dashboard/vacancy/${vacancy.id || vacancy._id}/applicants`)}
+                      title="View Applicants"
+                    >
+                      <Users className="w-4 h-4 mr-1" />
+                      View
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => navigate(`/dashboard/vacancy/${vacancy.id || vacancy._id}/applicants`)}
+                    >
+                      <Eye className="w-4 h-4" />
+                    </Button>
+                  </div>
                 </div>
               ))}
               {openVacancies.length === 0 && (

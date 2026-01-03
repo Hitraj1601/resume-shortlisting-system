@@ -236,6 +236,15 @@ const OpenVacancies = () => {
 
                       <div className="flex items-center gap-2 ml-4">
                         <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => navigate(`/dashboard/vacancy/${vacancy.id || vacancy._id}/applicants`)}
+                          title="View Applicants"
+                        >
+                          <Users className="w-4 h-4 mr-1" />
+                          {vacancy.applicants}
+                        </Button>
+                        <Button
                           variant="ghost"
                           size="sm"
                           onClick={() => {
